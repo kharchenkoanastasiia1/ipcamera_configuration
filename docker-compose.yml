@@ -1,0 +1,26 @@
+services:
+  seq:
+    image: datalust/seq:latest
+    container_name: seq
+    environment:
+      - ACCEPT_EULA=Y
+      - SEQ_FIRSTRUN_ADMINPASSWORD=root
+    volumes:
+      - seq-data:/data
+    ports:
+      - "5341:80"
+
+#  seq-input-gelf:
+#    image: datalust/seq-input-gelf:latest
+#    container_name: seq-input-gelf
+#    depends_on:
+#      - seq
+#    environment:
+#      - SEQ_ADDRESS=http://seq:80
+#      - SEQ_INPUT_GELF_LOG_TCP=true
+#      - GELF_ENABLE_DIAGNOSTICS=true # Включите диагностику
+#    ports:
+#      - "12201:12201"
+
+volumes:
+  seq-data:

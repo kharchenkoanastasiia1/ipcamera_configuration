@@ -1,0 +1,128 @@
+<!--<?xml version="1.0" encoding="UTF-8"?>-->
+<!--<configuration>-->
+
+    <!--    &lt;!&ndash; HTTP Appender для Seq &ndash;&gt;-->
+    <!--    <appender name="SEQ" class="net.logstash.logback.appender.LogstashHttpAppender">-->
+    <!--        <url>http://localhost:5341/api/events/raw</url>-->
+    <!--        <encoder class="net.logstash.logback.encoder.LogstashEncoder">-->
+    <!--            <customFields>{"application":"ipcamera_configuration"}</customFields>-->
+    <!--        </encoder>-->
+    <!--    </appender>-->
+
+    <!--    &lt;!&ndash; Можно также выводить в консоль &ndash;&gt;-->
+    <!--    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">-->
+    <!--        <encoder>-->
+    <!--            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>-->
+    <!--        </encoder>-->
+    <!--    </appender>-->
+
+    <!--    <root level="info">-->
+    <!--        <appender-ref ref="SEQ"/>-->
+    <!--        <appender-ref ref="STDOUT"/>-->
+    <!--    </root>-->
+
+<!--</configuration>-->
+
+
+<!--<configuration debug="true">-->
+<!--    <appender name="SEQ" class="net.logstash.logback.appender.HttpAppender">-->
+<!--        <url>http://localhost:5341/api/events/raw</url>-->
+<!--        <encoder class="net.logstash.logback.encoder.LogstashEncoder" />-->
+<!--    </appender>-->
+
+<!--    <root level="INFO">-->
+<!--        <appender-ref ref="SEQ"/>-->
+<!--    </root>-->
+<!--</configuration>-->
+
+<!--<?xml version="1.0" encoding="UTF-8"?>-->
+<!--<configuration  debug="true">-->
+<!--&lt;!&ndash;    <appender name="seq-http" class="io.github.logbackseq.SeqHttpAppender">&ndash;&gt;-->
+<!--&lt;!&ndash;        <serverUrl>http://localhost:5341</serverUrl>&ndash;&gt;-->
+<!--&lt;!&ndash;        <encoder class="net.logstash.logback.encoder.LogstashEncoder"/>&ndash;&gt;-->
+<!--&lt;!&ndash;    </appender>&ndash;&gt;-->
+<!--&lt;!&ndash;    <appender name="seq" class="net.logstash.logback.appender.LogstashTcpSocketAppender">&ndash;&gt;-->
+<!--&lt;!&ndash;        <destination>localhost:5341</destination>&ndash;&gt;-->
+<!--&lt;!&ndash;        <encoder class="net.logstash.logback.encoder.LogstashEncoder"/>&ndash;&gt;-->
+<!--&lt;!&ndash;    </appender>&ndash;&gt;-->
+
+<!--    <appender name="GELF" class="de.siegmar.logbackgelf.GelfTcpAppender">-->
+<!--        <graylogHost>localhost</graylogHost>-->
+<!--        <graylogPort>12201</graylogPort>-->
+<!--        <encoder class="de.siegmar.logbackgelf.GelfEncoder">-->
+<!--            <shortMessagePattern>%m%nopex</shortMessagePattern>-->
+<!--            <useCompression>false</useCompression>-->
+<!--        </encoder>-->
+<!--    </appender>-->
+
+<!--    &lt;!&ndash; The root logger references only the Seq appender &ndash;&gt;-->
+<!--    <root level="INFO">-->
+<!--        <appender-ref ref="GELF"/>-->
+<!--    </root>-->
+<!--</configuration>-->
+
+<!--<configuration>-->
+
+<!--    &lt;!&ndash; Appender для отправки логов в Seq &ndash;&gt;-->
+<!--    <appender name="SEQ" class="net.logstash.logback.appender.HttpAppender">-->
+<!--        <url>http://localhost:5341/api/events/raw</url>-->
+<!--        <encoder class="net.logstash.logback.encoder.LogstashEncoder"/>-->
+<!--    </appender>-->
+
+<!--    &lt;!&ndash; Все логи INFO и выше будут уходить в Seq &ndash;&gt;-->
+<!--    <root level="INFO">-->
+<!--        <appender-ref ref="SEQ"/>-->
+<!--    </root>-->
+
+<!--</configuration>-->
+
+<!--<configuration>-->
+<!--    <appender name="SEQ" class="net.logstash.logback.appender.LogstashTcpSocketAppender">-->
+<!--        <destination>localhost:5342</destination>-->
+<!--        <encoder class="net.logstash.logback.encoder.LogstashEncoder"/>-->
+<!--        <reconnectionDelay>5000</reconnectionDelay>-->
+<!--    </appender>-->
+
+<!--    <root level="debug">-->
+<!--        <appender-ref ref="SEQ"/>-->
+<!--    </root>-->
+<!--</configuration>-->
+
+<configuration>
+
+    <!-- Каталог, куда будут писаться логи -->
+    <property name="LOG_DIR" value="logs"/>
+
+    <!-- Имя файла -->
+    <property name="LOG_FILE" value="ipcamera.log"/>
+
+    <!-- Вывод в консоль -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- Вывод в файл -->
+    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_DIR}/${LOG_FILE}</file>
+
+        <!-- Ротация логов по дате -->
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <!-- Каждый день создаётся новый лог -->
+            <fileNamePattern>${LOG_DIR}/ipcamera-%d{yyyy-MM-dd}.log</fileNamePattern>
+            <!-- Хранить логи 30 дней -->
+            <maxHistory>30</maxHistory>
+        </rollingPolicy>
+
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- Настройки логирования -->
+    <root level="info">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="FILE"/>
+    </root>
+</configuration>
