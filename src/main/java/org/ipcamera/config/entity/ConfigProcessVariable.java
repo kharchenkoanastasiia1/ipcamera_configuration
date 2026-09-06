@@ -32,10 +32,8 @@ public class ConfigProcessVariable {
         this.intervalMinutesManual = 2;
         this.deltaManual = 3;
         this.checkManual = false;
-        this.urlDBFirebird = "jdbc:firebirdsql://192.168.20.5:3050/D:/base/main.gdb?encoding=WIN1251";
-        this.ntpHost = "120.2.32.1";
-//        this.urlDBFirebird = "jdbc:firebirdsql://192.168.1.108:3050/H:/db/MAIN.GDB?encoding=WIN1251";
-//        this.ntpHost = GOOGLE_NTP_TIME;
+        this.urlDBFirebird = "*";
+        this.ntpHost = "*";
     }
 
     public ConfigProcessVariable(int threadCount, long intervalMinutes, Boolean checkRTSP, int delta
