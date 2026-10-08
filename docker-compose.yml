@@ -1,0 +1,14 @@
+services:
+  seq:
+    image: datalust/seq:latest
+    container_name: seq
+    environment:
+      - ACCEPT_EULA=Y
+      - SEQ_FIRSTRUN_ADMINPASSWORD=YOUR_PASSWORD
+    volumes:
+      - seq-data:/data
+    ports:
+      - "5341:80"
+
+volumes:
+  seq-data:

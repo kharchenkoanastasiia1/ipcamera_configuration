@@ -1,0 +1,8 @@
+.idea/
+*.iml
+
+data/
+
+logs/
+
+target/
