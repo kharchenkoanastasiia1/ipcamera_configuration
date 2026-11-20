@@ -84,26 +84,8 @@ public class CameraRepositoryTest {
                                  ));
                      })) {
 
-            // Чтобы тест не ждал Thread.sleep(1000) три раза.
-            Thread.currentThread().interrupt();
-
-            try {
-                boolean result = repository.sendPingRtsp(
-                        "192.168.1.100",
-                        554,
-                        "admin",
-                        "wrong-password"
-                );
-
-                assertFalse(result);
-
-                // Метод делает ровно 3 попытки.
-                assertEquals(3, mockedSocket.constructed().size());
-
-            } finally {
-                // Очищаем interrupt flag после теста.
-                Thread.interrupted();
-            }
+            assertFalse(repository.sendPingRtsp("192.168.1.100", 554, "admin", "wrong-password"));
+            assertEquals(3, mockedSocket.constructed().size());
         }
     }
 
@@ -117,22 +99,8 @@ public class CameraRepositoryTest {
 
                      })) {
 
-            Thread.currentThread().interrupt();
-
-            try {
-                boolean result = repository.sendPingRtsp(
-                        "192.168.1.100",
-                        554,
-                        "admin",
-                        "password"
-                );
-
-                assertFalse(result);
-                assertEquals(3, mockedSocket.constructed().size());
-
-            } finally {
-                Thread.interrupted();
-            }
+            assertFalse(repository.sendPingRtsp("192.168.1.100", 554, "admin", "password"));
+            assertEquals(3, mockedSocket.constructed().size());
         }
     }
 

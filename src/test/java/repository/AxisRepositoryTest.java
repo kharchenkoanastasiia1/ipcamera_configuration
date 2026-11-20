@@ -16,12 +16,15 @@ import org.ipcamera.config.service.converter.TimeConverter;
 import org.ipcamera.config.service.time.NTPTimeService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 import org.mockito.MockedConstruction;
 import org.mockito.MockedStatic;
 import serilogj.Log;
 
 import java.io.IOException;
+import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.util.Date;
@@ -31,6 +34,155 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 class AxisRepositoryTest {
+
+    enum AxisOperation {
+        VERSION, LEGACY_HTML, LEGACY_CLOCK, LEGACY_ZONE, LEGACY_UPDATE,
+        MODERN_ZONE, MODERN_CLOCK, MODERN_UPDATE
+    }
+
+    @ParameterizedTest
+    @EnumSource(AxisOperation.class)
+    void retriesAfterTransportFailuresAndStopsAfterThirdAttempt(AxisOperation operation)
+            throws Exception {
+        Camera camera = createCamera();
+        CloseableHttpClient client = mock(CloseableHttpClient.class);
+        HttpClientBuilder builder = createHttpClientBuilder(client);
+        when(client.execute(any(HttpUriRequest.class)))
+                .thenThrow(new UnknownHostException("camera unavailable"))
+                .thenThrow(new IllegalStateException("unexpected response"))
+                .thenThrow(new IOException("response interrupted"));
+
+        try (MockedStatic<HttpClients> httpClients = mockStatic(HttpClients.class);
+             MockedConstruction<NTPTimeService> ntp = mockConstruction(NTPTimeService.class,
+                     (service, context) -> when(service.getNTPTime("127.0.0.1"))
+                             .thenReturn(new Date(0)))) {
+            httpClients.when(HttpClients::custom).thenReturn(builder);
+
+            switch (operation) {
+                case VERSION -> assertNull(repository.getVersion(camera));
+                case LEGACY_HTML -> assertNull(repository.getDateTimeForVersionBelow6(camera));
+                case LEGACY_CLOCK -> assertNull(repository.getServerDateTime(camera, "127.0.0.1"));
+                case LEGACY_ZONE -> repository.postTimeZoneOld(camera);
+                case LEGACY_UPDATE -> repository.getConfigurationDateTime(camera, "127.0.0.1", false);
+                case MODERN_ZONE -> repository.postTimeZoneNew(camera);
+                case MODERN_CLOCK -> assertNull(repository.postGetDateTime(camera));
+                case MODERN_UPDATE -> repository.postChangeDatetime(camera, "127.0.0.1", false);
+            }
+
+            verify(client, times(3)).execute(any(HttpUriRequest.class));
+            verify(client).close();
+            verify(camera, never()).setStatusGetRequest(true);
+            verify(camera, never()).setDateUpdateSuccess(any());
+            if (operation == AxisOperation.LEGACY_UPDATE || operation == AxisOperation.MODERN_UPDATE) {
+                verify(camera).setStatusGetRequest(false);
+            }
+        }
+    }
+
+    @Test
+    void postGetDateTime_shouldRetryAfterIoAndHttpErrorsAndParseSuccessfulResponse() throws Exception {
+        Camera camera = createCamera();
+        CloseableHttpClient client = mock(CloseableHttpClient.class);
+        HttpClientBuilder builder = createHttpClientBuilder(client);
+        CloseableHttpResponse unavailable = createResponse(503, "Service unavailable");
+        CloseableHttpResponse available = createResponse(200,
+                "{\"data\":{\"dateTime\":\"2026-09-06T12:00:00+03:00\"}}");
+        when(client.execute(any(HttpUriRequest.class)))
+                .thenThrow(new IOException("response interrupted"))
+                .thenReturn(unavailable, available);
+
+        try (MockedStatic<HttpClients> httpClients = mockStatic(HttpClients.class)) {
+            httpClients.when(HttpClients::custom).thenReturn(builder);
+
+            assertEquals(Date.from(OffsetDateTime.parse("2026-09-06T09:00:00Z").toInstant()),
+                    repository.postGetDateTime(camera));
+            verify(client, times(3)).execute(any(HttpUriRequest.class));
+            verify(camera).setStatusGetRequest(true);
+        }
+    }
+
+    @Test
+    void postChangeDatetime_shouldUpdateCameraAfterTransientIoFailure() throws Exception {
+        Camera camera = createCamera();
+        CloseableHttpClient client = mock(CloseableHttpClient.class);
+        HttpClientBuilder builder = createHttpClientBuilder(client);
+        CloseableHttpResponse response = createResponse(204, "");
+        when(client.execute(any(HttpUriRequest.class)))
+                .thenThrow(new IOException("response interrupted"))
+                .thenReturn(response);
+        Date date = new Date(60_000);
+
+        try (var httpClients = mockStatic(HttpClients.class);
+             var ntp = mockConstruction(NTPTimeService.class,
+                     (service, context) -> when(service.getNTPTime("127.0.0.1")).thenReturn(date));
+             var log = mockStatic(Log.class)) {
+            httpClients.when(HttpClients::custom).thenReturn(builder);
+
+            repository.postChangeDatetime(camera, "127.0.0.1", false);
+
+            verify(client, times(2)).execute(any(HttpUriRequest.class));
+            verify(camera).setDateUpdateSuccess(date);
+            verify(camera).setStatusGetRequest(true);
+            verify(camera).setDifferenceTime(0);
+        }
+    }
+
+    @Test
+    void postChangeDatetime_shouldPropagateNtpFailureAndCloseHttpClient() throws Exception {
+        Camera camera = createCamera();
+        CloseableHttpClient client = mock(CloseableHttpClient.class);
+        HttpClientBuilder builder = createHttpClientBuilder(client);
+        IOException failure = new IOException("NTP response unavailable");
+
+        try (MockedStatic<HttpClients> httpClients = mockStatic(HttpClients.class);
+             MockedConstruction<NTPTimeService> ntp = mockConstruction(NTPTimeService.class,
+                     (service, context) -> when(service.getNTPTime("127.0.0.1")).thenThrow(failure))) {
+            httpClients.when(HttpClients::custom).thenReturn(builder);
+
+            RuntimeException thrown = assertThrows(RuntimeException.class,
+                    () -> repository.postChangeDatetime(camera, "127.0.0.1", false));
+
+            assertSame(failure, thrown.getCause());
+            verify(client, never()).execute(any(HttpUriRequest.class));
+            verify(client).close();
+            verify(camera, never()).setDateUpdateSuccess(any());
+        }
+    }
+
+    @Test
+    void legacyDateTimeUpdate_shouldCloseClientWithoutSendingHttpWhenNtpFails() throws Exception {
+        Camera camera = createCamera();
+        CloseableHttpClient client = mock(CloseableHttpClient.class);
+        HttpClientBuilder builder = createHttpClientBuilder(client);
+        try (var httpClients = mockStatic(HttpClients.class);
+             var ntp = mockConstruction(NTPTimeService.class,
+                     (service, context) -> when(service.getNTPTime("127.0.0.1"))
+                             .thenThrow(new IOException("NTP response unavailable")))) {
+            httpClients.when(HttpClients::custom).thenReturn(builder);
+
+            repository.getConfigurationDateTime(camera, "127.0.0.1", false);
+
+            verify(client, never()).execute(any(HttpUriRequest.class));
+            verify(client).close();
+            verify(camera, never()).setDateUpdateSuccess(any());
+        }
+    }
+
+    @Test
+    void getServerDateTime_shouldReturnNullWhenHttpClientCannotStart() throws Exception {
+        Camera camera = createCamera();
+        HttpClientBuilder builder = mock(HttpClientBuilder.class, RETURNS_SELF);
+        when(builder.build()).thenThrow(new IllegalStateException("HTTP client unavailable"));
+        try (var httpClients = mockStatic(HttpClients.class);
+             var ntp = mockConstruction(NTPTimeService.class)) {
+            httpClients.when(HttpClients::custom).thenReturn(builder);
+
+            assertNull(repository.getServerDateTime(camera, "127.0.0.1"));
+
+            assertTrue(ntp.constructed().isEmpty());
+            verify(camera, never()).setStatusGetRequest(true);
+        }
+    }
 
     private AxisRepository repository;
 
